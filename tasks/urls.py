@@ -1,4 +1,6 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.conf import settings
+from django.views.static import serve
 from rest_framework.routers import DefaultRouter
 from .views import (
     DepartmentViewSet, UserViewSet, TaskViewSet,
@@ -26,6 +28,7 @@ router.register(r'email-logs', DispatchedEmailLogViewSet, basename='email-log')
 router.register(r'activity-logs', ActivityLogViewSet, basename='activity-log')
 
 urlpatterns = [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     path('auth/login/', login_user, name='login_user'),
     path('auth/logout/', logout_user, name='logout_user'),
     path('auth/personas/', list_personas, name='list_personas'),

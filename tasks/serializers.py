@@ -174,7 +174,7 @@ class TaskSerializer(serializers.ModelSerializer):
         if raw_img and not raw_img.startswith('data:'):
             clean_path = raw_img.strip()
             # If it contains a full URL, strip the old scheme and domain to extract the relative media path
-            if clean_path.startswith('http://') or clean_path.startswith('https://'):
+            if '://' in clean_path:
                 from urllib.parse import urlparse
                 parsed = urlparse(clean_path)
                 clean_path = parsed.path
@@ -183,29 +183,31 @@ class TaskSerializer(serializers.ModelSerializer):
             if not clean_path.startswith('/'):
                 clean_path = '/' + clean_path
 
-            # Remove existing /nextup prefix if present so we have a clean /media/... path
-            if clean_path.startswith('/nextup/'):
-                clean_path = clean_path[len('/nextup'):]
+            # Extract sub_path relative to /media/
+            if '/media/' in clean_path:
+                sub_path = clean_path[clean_path.index('/media/') + len('/media/'):]
+            else:
+                sub_path = clean_path.lstrip('/')
 
             request = self.context.get('request')
             if request:
                 host = request.get_host()
-                forwarded_proto = request.META.get('HTTP_X_FORWARDED_PROTO')
-                scheme = forwarded_proto if forwarded_proto else ('https' if request.is_secure() else 'http')
-                if 'rguedu.in' in host or 'rathinamtechzone.com' in host:
+                if host in ['127.0.0.1', 'localhost', 'backend', '127.0.0.1:8000', '127.0.0.1:8007']:
+                    host = 'www.rguedu.in'
                     scheme = 'https'
+                else:
+                    forwarded_proto = request.META.get('HTTP_X_FORWARDED_PROTO')
+                    scheme = forwarded_proto if forwarded_proto else ('https' if request.is_secure() else 'http')
+                    if 'rguedu.in' in host or 'rathinamtechzone.com' in host:
+                        scheme = 'https'
 
-                # Check if subpath /nextup applies
-                is_subpath = any(d in host for d in ['rguedu.in', 'rathinamtechzone.com']) or request.path.startswith('/nextup')
-                prefix = '/nextup' if is_subpath else ''
-
-                full_url = f"{scheme}://{host}{prefix}{clean_path}"
+                full_url = f"{scheme}://{host}/nextup/api/media/{sub_path}"
                 ret['attachment_image'] = full_url
                 ret['image'] = full_url
             else:
-                # Fallback for production server
-                ret['attachment_image'] = f"https://www.rguedu.in/nextup{clean_path}"
-                ret['image'] = ret['attachment_image']
+                full_url = f"https://www.rguedu.in/nextup/api/media/{sub_path}"
+                ret['attachment_image'] = full_url
+                ret['image'] = full_url
         return ret
 
 

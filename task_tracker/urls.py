@@ -7,4 +7,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('tasks.urls')),
     re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^nextup/media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]

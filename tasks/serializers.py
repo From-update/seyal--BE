@@ -171,12 +171,41 @@ class TaskSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         raw_img = ret.get('attachment_image')
-        if raw_img and not (raw_img.startswith('http://') or raw_img.startswith('https://') or raw_img.startswith('data:')):
+        if raw_img and not raw_img.startswith('data:'):
+            clean_path = raw_img.strip()
+            # If it contains a full URL, strip the old scheme and domain to extract the relative media path
+            if clean_path.startswith('http://') or clean_path.startswith('https://'):
+                from urllib.parse import urlparse
+                parsed = urlparse(clean_path)
+                clean_path = parsed.path
+
+            # Ensure leading slash
+            if not clean_path.startswith('/'):
+                clean_path = '/' + clean_path
+
+            # Remove existing /nextup prefix if present so we have a clean /media/... path
+            if clean_path.startswith('/nextup/'):
+                clean_path = clean_path[len('/nextup'):]
+
             request = self.context.get('request')
             if request:
-                full_url = request.build_absolute_uri(raw_img)
+                host = request.get_host()
+                forwarded_proto = request.META.get('HTTP_X_FORWARDED_PROTO')
+                scheme = forwarded_proto if forwarded_proto else ('https' if request.is_secure() else 'http')
+                if 'rguedu.in' in host or 'rathinamtechzone.com' in host:
+                    scheme = 'https'
+
+                # Check if subpath /nextup applies
+                is_subpath = any(d in host for d in ['rguedu.in', 'rathinamtechzone.com']) or request.path.startswith('/nextup')
+                prefix = '/nextup' if is_subpath else ''
+
+                full_url = f"{scheme}://{host}{prefix}{clean_path}"
                 ret['attachment_image'] = full_url
                 ret['image'] = full_url
+            else:
+                # Fallback for production server
+                ret['attachment_image'] = f"https://www.rguedu.in/nextup{clean_path}"
+                ret['image'] = ret['attachment_image']
         return ret
 
 

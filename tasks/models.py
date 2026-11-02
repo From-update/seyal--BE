@@ -314,3 +314,57 @@ class UserSessionLog(models.Model):
         status = "Active" if self.is_active else "Logged Out"
         return f"{self.user.username} [{self.platform}] - {status} ({self.login_time:%Y-%m-%d %H:%M})"
 
+
+
+class RoutineWorkItem(models.Model):
+    FREQUENCY_DAILY = 'DAILY'
+    FREQUENCY_WEEKLY = 'WEEKLY'
+    FREQUENCY_MONTHLY = 'MONTHLY'
+    FREQUENCY_YEARLY = 'YEARLY'
+
+    FREQUENCY_CHOICES = [
+        (FREQUENCY_DAILY, 'Daily'),
+        (FREQUENCY_WEEKLY, 'Weekly'),
+        (FREQUENCY_MONTHLY, 'Monthly'),
+        (FREQUENCY_YEARLY, 'Yearly'),
+    ]
+
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default=FREQUENCY_DAILY, db_index=True)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='routine_items')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_routine_items')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_routine_items')
+    priority = models.CharField(max_length=20, choices=Task.PRIORITY_CHOICES, default=Task.PRIORITY_MEDIUM)
+    target_time = models.CharField(max_length=100, blank=True, default='')
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    last_completed_at = models.DateTimeField(null=True, blank=True)
+    last_completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_routine_items')
+    completion_notes = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['frequency', 'created_at']
+
+    def __str__(self):
+        dept_str = f"[{self.department.code}] " if self.department else ""
+        return f"{dept_str}{self.title} ({self.get_frequency_display()})"
+
+
+class RoutineWorkLog(models.Model):
+    item = models.ForeignKey(RoutineWorkItem, on_delete=models.CASCADE, related_name='logs')
+    completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='routine_logs')
+    completed_at = models.DateTimeField(auto_now_add=True)
+    period_identifier = models.CharField(max_length=50, db_index=True)
+    notes = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, default='COMPLETED')
+
+    class Meta:
+        ordering = ['-completed_at']
+        unique_together = ('item', 'period_identifier')
+
+    def __str__(self):
+        return f"{self.item.title} - {self.period_identifier} ({self.status})"

@@ -18,13 +18,15 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import (
     Department, User, Task, TaskComment,
     Notification, DispatchedEmailLog, ActivityLog,
-    SelfTask, SelfNote, UserDevice, UserSessionLog
+    SelfTask, SelfNote, UserDevice, UserSessionLog,
+    RoutineWorkItem, RoutineWorkLog
 )
 from .serializers import (
     DepartmentSerializer, UserSerializer, TaskSerializer,
     TaskCommentSerializer, NotificationSerializer,
     DispatchedEmailLogSerializer, ActivityLogSerializer,
-    SelfTaskSerializer, SelfNoteSerializer, UserDeviceSerializer, UserSessionLogSerializer
+    SelfTaskSerializer, SelfNoteSerializer, UserDeviceSerializer, UserSessionLogSerializer,
+    RoutineWorkItemSerializer, RoutineWorkLogSerializer
 )
 from .permissions import CanManageDepartment, CanManageStaff, IsGMOrSuperAdmin, IsSuperAdmin
 from .services import (
@@ -2009,3 +2011,113 @@ def get_app_version(request):
 
 
 
+
+
+class RoutineWorkItemViewSet(viewsets.ModelViewSet):
+    """
+    Routine Work Items (Daily, Weekly, Monthly, Yearly Checklists)
+    """
+    serializer_class = RoutineWorkItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _resolve_user(self, request):
+        user = request.user
+        if not user or not user.is_authenticated:
+            user_id = request.headers.get('X-Active-User-Id') or request.META.get('HTTP_X_ACTIVE_USER_ID')
+            if user_id:
+                user = User.objects.filter(pk=user_id, is_active=True).first()
+        return user
+
+    def get_queryset(self):
+        user = self._resolve_user(self.request)
+        if not user:
+            return RoutineWorkItem.objects.none()
+
+        qs = RoutineWorkItem.objects.filter(is_active=True)
+
+        # Non-GM departmental scoping
+        if not user.is_gm_or_super():
+            if user.department:
+                qs = qs.filter(Q(department=user.department) | Q(assigned_to=user) | Q(created_by=user))
+            else:
+                qs = qs.filter(Q(assigned_to=user) | Q(created_by=user))
+
+        freq = self.request.query_params.get('frequency')
+        if freq and freq != 'ALL':
+            qs = qs.filter(frequency=freq)
+
+        dept = self.request.query_params.get('department')
+        if dept and dept != 'ALL':
+            qs = qs.filter(department_id=dept)
+
+        staff = self.request.query_params.get('assigned_to')
+        if staff and staff != 'ALL':
+            qs = qs.filter(assigned_to_id=staff)
+
+        return qs.order_by('frequency', 'created_at')
+
+    def perform_create(self, serializer):
+        user = self._resolve_user(self.request)
+        if not user:
+            raise PermissionDenied("Authentication required to create routine checklist items.")
+        serializer.save(created_by=user)
+
+    @action(detail=True, methods=['post'], url_path='toggle-complete')
+    def toggle_complete(self, request, pk=None):
+        user = self._resolve_user(request)
+        if not user:
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        item = self.get_object()
+        period = request.data.get('period_identifier')
+        notes = request.data.get('notes', '')
+
+        if not period:
+            return Response({'detail': 'period_identifier is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing_log = RoutineWorkLog.objects.filter(item=item, period_identifier=period).first()
+        if existing_log:
+            # Uncheck
+            existing_log.delete()
+            item.last_completed_at = None
+            item.last_completed_by = None
+            item.save(update_fields=['last_completed_at', 'last_completed_by'])
+            return Response({'completed': False, 'period_identifier': period})
+        else:
+            # Check
+            now = timezone.now()
+            log = RoutineWorkLog.objects.create(
+                item=item,
+                completed_by=user,
+                completed_at=now,
+                period_identifier=period,
+                notes=notes,
+                status='COMPLETED'
+            )
+            item.last_completed_at = now
+            item.last_completed_by = user
+            item.save(update_fields=['last_completed_at', 'last_completed_by'])
+            return Response({
+                'completed': True,
+                'period_identifier': period,
+                'completed_by_name': user.get_full_name() or user.username,
+                'completed_at': now.isoformat()
+            })
+
+
+class RoutineWorkLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Routine Work Logs
+    """
+    serializer_class = RoutineWorkLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = RoutineWorkLog.objects.all()
+        item_id = self.request.query_params.get('item')
+        if item_id:
+            qs = qs.filter(item_id=item_id)
+        period = self.request.query_params.get('period_identifier')
+        if period:
+            qs = qs.filter(period_identifier=period)
+        return qs.order_by('-completed_at')

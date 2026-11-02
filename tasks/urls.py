@@ -7,6 +7,7 @@ from .views import (
     TaskCommentViewSet, NotificationViewSet,
     DispatchedEmailLogViewSet, ActivityLogViewSet,
     SelfTaskViewSet, SelfNoteViewSet,
+    RoutineWorkItemViewSet, RoutineWorkLogViewSet,
     list_personas, current_user_me, dashboard_stats,
     login_user, logout_user,
     backup_database_sql, backup_database_json,
@@ -26,6 +27,8 @@ router.register(r'comments', TaskCommentViewSet, basename='comment')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'email-logs', DispatchedEmailLogViewSet, basename='email-log')
 router.register(r'activity-logs', ActivityLogViewSet, basename='activity-log')
+router.register(r'routine-items', RoutineWorkItemViewSet, basename='routine-item')
+router.register(r'routine-logs', RoutineWorkLogViewSet, basename='routine-log')
 
 urlpatterns = [
     re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),

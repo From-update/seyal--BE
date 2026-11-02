@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Department, User, Task, TaskComment, Notification, DispatchedEmailLog, ActivityLog,
-    SelfTask, SelfNote, UserDevice, UserSessionLog
+    SelfTask, SelfNote, UserDevice, UserSessionLog, RoutineWorkItem, RoutineWorkLog
 )
 
 
@@ -311,3 +311,50 @@ class UserSessionLogSerializer(serializers.ModelSerializer):
 
     def get_department_name(self, obj):
         return obj.user.department.name if obj.user.department else 'Global'
+
+
+class RoutineWorkLogSerializer(serializers.ModelSerializer):
+    completed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoutineWorkLog
+        fields = ['id', 'item', 'completed_by', 'completed_by_name', 'completed_at', 'period_identifier', 'notes', 'status']
+        read_only_fields = ['completed_at']
+
+    def get_completed_by_name(self, obj):
+        if obj.completed_by:
+            return obj.completed_by.get_full_name() or obj.completed_by.username
+        return ''
+
+
+class RoutineWorkItemSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    department_code = serializers.CharField(source='department.code', read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    last_completed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoutineWorkItem
+        fields = [
+            'id', 'title', 'description', 'frequency', 'department', 'department_name', 'department_code',
+            'assigned_to', 'assigned_to_name', 'created_by', 'created_by_name', 'priority', 'target_time',
+            'is_active', 'last_completed_at', 'last_completed_by', 'last_completed_by_name',
+            'completion_notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'created_by']
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return obj.assigned_to.get_full_name() or obj.assigned_to.username
+        return ''
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return ''
+
+    def get_last_completed_by_name(self, obj):
+        if obj.last_completed_by:
+            return obj.last_completed_by.get_full_name() or obj.last_completed_by.username
+        return ''

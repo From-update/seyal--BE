@@ -1,4 +1,4 @@
-# Byte-compiled / optimized files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,38 +20,35 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
-env/
 venv/
+env/
 ENV/
 env.bak/
 venv.bak/
 .venv/
 
-# Environment files
-.env
-.env.*
-!.env.example
-
-# Database
-*.sqlite3
-*.db
-
-# Static / Media / Logs
+# Django stuff:
 *.log
-staticfiles/
-media/*
-!media/.gitkeep
-!media/task_attachments/
-media/task_attachments/*
-!media/task_attachments/.gitkeep
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/uploads/
 
-# OS / Editor files
-.DS_Store
-Thumbs.db
+# Environment variables
+.env
+.env.local
+
+# IDE & OS
 .vscode/
 .idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

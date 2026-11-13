@@ -1,0 +1,57 @@
+[
+  {
+    "id": "bday_1",
+    "name": "Prof. Anitha Selvan",
+    "birth_date": "1988-11-12",
+    "relationship": "Colleague",
+    "department": "Computer Science & Engineering",
+    "phone": "+919876543210",
+    "email": "manager@seyal.app",
+    "gift_ideas": "Department felicitation bouquet, tech book",
+    "notes": "HOD CSE - organizes department annual hackathon"
+  },
+  {
+    "id": "bday_2",
+    "name": "Karthik Subramanian",
+    "birth_date": "1995-11-10",
+    "relationship": "Colleague",
+    "department": "Mechanical Engineering",
+    "phone": "+919840123456",
+    "email": "staff@seyal.app",
+    "gift_ideas": "Coffee mug, stationary set",
+    "notes": "Faculty coordinator for lab accreditations"
+  },
+  {
+    "id": "bday_3",
+    "name": "Priya Sharma",
+    "birth_date": "2003-11-18",
+    "relationship": "Student",
+    "department": "Final Year CSE",
+    "phone": "+919123456789",
+    "email": "student@seyal.app",
+    "gift_ideas": "Coding competition book",
+    "notes": "Student council lead & top ranker"
+  },
+  {
+    "id": "bday_4",
+    "name": "Dr. Rajesh Sundaram",
+    "birth_date": "1975-12-05",
+    "relationship": "Principal / Lead",
+    "department": "Administration",
+    "phone": "+919888877777",
+    "email": "gm@seyal.app",
+    "gift_ideas": "Leadership pen, campus greeting card",
+    "notes": "College Principal & Institutional Founder"
+  },
+  {
+    "id": "bday_5",
+    "name": "Rohan & Sneha",
+    "birth_date": "2021-11-20",
+    "relationship": "Family / Friends",
+    "department": "Personal",
+    "phone": "+919555544444",
+    "email": "rohan@gmail.com",
+    "gift_ideas": "Dinner voucher or customized photo frame",
+    "notes": "Wedding Anniversary celebration"
+  }
+]

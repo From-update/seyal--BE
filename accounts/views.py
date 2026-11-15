@@ -96,12 +96,18 @@ class RegisterView(views.APIView):
         email = serializer.validated_data['email'].lower()
         password = serializer.validated_data['password']
         name = serializer.validated_data.get('name') or email.split('@')[0].capitalize()
+        phone = serializer.validated_data.get('phone', '').strip()
+        role = serializer.validated_data.get('role', '').strip()
 
         if User.objects.filter(email=email).exists():
             return Response({'error': 'Email is already registered'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if phone and User.objects.filter(phone=phone).exists():
+            return Response({'error': 'Phone number is already associated with an account'}, status=status.HTTP_400_BAD_REQUEST)
+
         user = User.objects.create_user(
             email=email,
+            phone=phone if phone else None,
             password=password,
             name=name,
             email_verified=True # Auto verify for demo/local flow
@@ -239,6 +245,7 @@ class OTPRequestView(views.APIView):
         phone = serializer.validated_data.get('phone', '').strip()
         email = serializer.validated_data.get('email', '').strip().lower()
 
+        provider = serializer.validated_data.get('provider', 'email_otp')
         code = generate_numeric_otp(6)
         code_hash = hash_secret(code)
         expires_at = timezone.now() + datetime.timedelta(minutes=10)
@@ -253,14 +260,66 @@ class OTPRequestView(views.APIView):
                 ip=request.META.get('REMOTE_ADDR'),
                 device_id=request.META.get('HTTP_USER_AGENT', '')[:100]
             )
-            print(f"📧 [Email OTP] 6-Digit code generated for {email}: {code}")
+            print(f"📧 [Email OTP] 6-Digit code generated for {email} (provider: {provider}): {code}")
+
+            # Send real email via Gmail SMTP
+            email_sent = False
+            email_warning = None
+            try:
+                from django.core.mail import send_mail
+                from_addr = getattr(settings, 'DEFAULT_FROM_EMAIL', 'prabanprabanjan@gmail.com')
+                sender_email = getattr(settings, 'EMAIL_HOST_USER', 'prabanprabanjan@gmail.com')
+                subject = f"{code} is your Seyal Google sign-in code" if provider == 'google' else f"{code} is your Seyal verification code"
+                message = f"Hello,\n\nYour 6-digit verification code for Seyal is: {code}\n\nThis code will expire in 10 minutes.\n\nBest regards,\nThe Seyal Team\n{sender_email}"
+                html_message = f"""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <h2 style="color: #2563eb; margin: 0; font-size: 24px;">🚀 Seyal</h2>
+                        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Workspace & Task Hierarchy</p>
+                    </div>
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 20px; border: 1px solid #f1f5f9;">
+                        <p style="color: #1e293b; font-size: 15px; margin: 0 0 12px 0;">Hello,</p>
+                        <p style="color: #334155; font-size: 14px; margin: 0 0 20px 0; line-height: 1.5;">
+                            Use the 6-digit verification code below to sign in to your Seyal workspace:
+                        </p>
+                        <div style="text-align: center; margin: 24px 0;">
+                            <span style="display: inline-block; font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1e40af; background: #eff6ff; padding: 12px 28px; border-radius: 8px; border: 1px solid #bfdbfe;">
+                                {code}
+                            </span>
+                        </div>
+                        <p style="color: #64748b; font-size: 12px; margin: 0; line-height: 1.5;">
+                            ⏱️ This code will expire in 10 minutes. If you did not request this, you can safely ignore this email.
+                        </p>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0 12px 0;" />
+                    <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+                        Sent from {sender_email}
+                    </p>
+                </div>
+                """
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=from_addr,
+                    recipient_list=[email],
+                    html_message=html_message,
+                    fail_silently=False
+                )
+                email_sent = True
+                print(f"✅ [Email OTP] Email dispatched successfully to {email} from {from_addr}")
+            except Exception as e:
+                email_warning = str(e)
+                print(f"⚠️ [Email OTP] Failed to send email via SMTP: {e}")
+
             resp_data = {
                 'message': f'OTP sent successfully to {email}',
                 'email': email,
+                'email_sent': email_sent,
                 'expires_in_seconds': 600,
                 'cooldown_seconds': 45,
-                'dev_code': code,
             }
+            if email_warning:
+                resp_data['email_warning'] = email_warning
             return Response(resp_data, status=status.HTTP_200_OK)
 
         elif phone:
@@ -281,7 +340,6 @@ class OTPRequestView(views.APIView):
                 'phone': phone,
                 'expires_in_seconds': 600,
                 'cooldown_seconds': 45,
-                'dev_code': code,
             }
             return Response(resp_data, status=status.HTTP_200_OK)
 
@@ -297,6 +355,7 @@ class OTPVerifyView(views.APIView):
         email = serializer.validated_data.get('email', '').strip().lower()
         code = serializer.validated_data['code'].strip()
         name = serializer.validated_data.get('name', '').strip()
+        provider = serializer.validated_data.get('provider') or 'email_otp'
 
         code_hash = hash_secret(code)
 
@@ -340,20 +399,24 @@ class OTPVerifyView(views.APIView):
                 user = User.objects.create_user(
                     email=email,
                     name=user_name,
-                    email_verified=True
-                )
-                AuthIdentity.objects.create(
-                    user=user,
-                    provider='email_otp',
-                    provider_user_id=email,
-                    provider_email=email,
-                    is_verified=True
+                    email_verified=True,
+                    avatar_url=f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}" if provider == 'google' else ""
                 )
             else:
                 if not user.email_verified:
                     user.email_verified = True
                     user.save(update_fields=['email_verified'])
-            provider_tag = 'email_otp'
+                if provider == 'google' and not user.avatar_url:
+                    user.avatar_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}"
+                    user.save(update_fields=['avatar_url'])
+
+            AuthIdentity.objects.get_or_create(
+                user=user,
+                provider=provider,
+                provider_user_id=email,
+                defaults={'provider_email': email, 'is_verified': True}
+            )
+            provider_tag = provider
         else:
             user = User.objects.filter(phone=phone).first()
             if not user:

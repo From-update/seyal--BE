@@ -18,6 +18,8 @@ class RegisterSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150, required=False, default="")
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True, default="")
     role = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    account_type = serializers.CharField(max_length=50, required=False, allow_blank=True, default="personal")
+    organization_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()

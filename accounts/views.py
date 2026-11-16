@@ -98,6 +98,9 @@ class RegisterView(views.APIView):
         name = serializer.validated_data.get('name') or email.split('@')[0].capitalize()
         phone = serializer.validated_data.get('phone', '').strip()
         role = serializer.validated_data.get('role', '').strip()
+        account_type = serializer.validated_data.get('account_type', 'personal').lower()
+        org_name = serializer.validated_data.get('organization_name', '').strip()
+        usage_mode = "team" if account_type in ['company', 'organization'] else "self"
 
         if User.objects.filter(email=email).exists():
             return Response({'error': 'Email is already registered'}, status=status.HTTP_400_BAD_REQUEST)
@@ -110,7 +113,8 @@ class RegisterView(views.APIView):
             phone=phone if phone else None,
             password=password,
             name=name,
-            email_verified=True # Auto verify for demo/local flow
+            email_verified=True,
+            usage_mode=usage_mode
         )
 
         AuthIdentity.objects.create(
@@ -122,6 +126,26 @@ class RegisterView(views.APIView):
         )
 
         ensure_personal_workspace(user)
+
+        # If registering for a Company or Organization, create dedicated workspace
+        if account_type in ['company', 'organization'] and org_name:
+            ws_type = 'organization' if account_type == 'organization' else 'team'
+            team_ws = Workspace.objects.create(
+                name=org_name,
+                type=ws_type,
+                plan='free',
+                owner=user,
+                settings={"icon": "🏢" if account_type == 'company' else "🏛️", "theme": "default"}
+            )
+            WorkspaceMember.objects.create(
+                workspace=team_ws,
+                user=user,
+                role='owner',
+                status='active'
+            )
+            user.default_workspace_id = str(team_ws.id)
+            user.save(update_fields=['default_workspace_id'])
+
         tokens = get_tokens_for_user(user)
 
         LoginAudit.objects.create(

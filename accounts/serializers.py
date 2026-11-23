@@ -8,9 +8,9 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'name', 'email', 'email_verified',
             'phone', 'phone_verified', 'avatar_url',
             'language', 'default_workspace_id', 'usage_mode',
-            'is_active', 'created_at'
+            'is_active', 'is_staff', 'is_superuser', 'created_at'
         ]
-        read_only_fields = ['id', 'email_verified', 'phone_verified', 'created_at']
+        read_only_fields = ['id', 'email_verified', 'phone_verified', 'is_staff', 'is_superuser', 'created_at']
 
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField()

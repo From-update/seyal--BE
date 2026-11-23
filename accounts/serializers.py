@@ -22,7 +22,7 @@ class RegisterSerializer(serializers.Serializer):
     organization_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    email = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
 class SocialAuthSerializer(serializers.Serializer):

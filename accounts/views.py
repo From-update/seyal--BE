@@ -168,10 +168,13 @@ class LoginView(views.APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email'].lower()
+        email_or_user = serializer.validated_data['email'].strip().lower()
         password = serializer.validated_data['password']
 
-        user = User.objects.filter(email=email).first()
+        user = User.objects.filter(email=email_or_user).first()
+        if not user and email_or_user == 'admin':
+            user = User.objects.filter(email='admin@seyal.app').first() or User.objects.filter(email='superadmin@seyal.app').first()
+
         if not user or not user.check_password(password):
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
 

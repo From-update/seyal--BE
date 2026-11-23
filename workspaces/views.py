@@ -513,6 +513,152 @@ class SuperadminOrganisationDetailView(views.APIView):
         serializer.save()
         return Response(serializer.data)
 
+class SuperadminUsersView(views.APIView):
+    """
+    Platform User Directory & Control for Super Admin.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'error': 'Superadmin privileges required'}, status=status.HTTP_403_FORBIDDEN)
+
+        users = User.objects.all().order_by('-created_at')
+        result = []
+        for u in users:
+            memberships = list(WorkspaceMember.objects.filter(user=u).values(
+                'id', 'role', 'designation', 'workspace__name', 'workspace__organisation__name'
+            ))
+            result.append({
+                'id': str(u.id),
+                'name': u.name,
+                'email': u.email,
+                'phone': u.phone,
+                'is_active': u.is_active,
+                'is_staff': u.is_staff,
+                'is_superuser': u.is_superuser,
+                'created_at': u.created_at,
+                'memberships': memberships,
+            })
+        return Response(result)
+
+    def post(self, request):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'error': 'Superadmin privileges required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        email = data.get('email', '').strip().lower()
+        name = data.get('name', '').strip()
+        phone = data.get('phone', '').strip()
+        password = data.get('password') or 'Welcome@123'
+        is_superuser = bool(data.get('is_superuser', False))
+        is_staff = bool(data.get('is_staff', False)) or is_superuser
+
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=email,
+                name=name or email.split('@')[0].capitalize(),
+                phone=phone or None,
+                password=password,
+                email_verified=True,
+                is_staff=is_staff,
+                is_superuser=is_superuser,
+            )
+            AuthIdentity.objects.create(
+                user=user,
+                provider='password',
+                provider_user_id=email,
+                provider_email=email,
+                is_verified=True
+            )
+
+            # Optional org enrollment
+            org_id = data.get('organisation_id')
+            role = data.get('role', 'staff')
+            if org_id:
+                org = Organisation.objects.filter(id=org_id).first()
+                if org:
+                    ws = org.workspaces.first()
+                    if ws:
+                        WorkspaceMember.objects.create(
+                            workspace=ws,
+                            user=user,
+                            role=role,
+                            status='active'
+                        )
+                        user.default_workspace_id = str(ws.id)
+                        user.save(update_fields=['default_workspace_id'])
+
+        return Response({
+            'id': str(user.id),
+            'name': user.name,
+            'email': user.email,
+            'phone': user.phone,
+            'is_active': user.is_active,
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser,
+            'created_at': user.created_at
+        }, status=status.HTTP_201_CREATED)
+
+class SuperadminUserDetailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'error': 'Superadmin privileges required'}, status=status.HTTP_403_FORBIDDEN)
+
+        user = User.objects.filter(id=pk).first()
+        if not user:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if 'is_active' in request.data:
+            user.is_active = bool(request.data['is_active'])
+        if 'is_staff' in request.data:
+            user.is_staff = bool(request.data['is_staff'])
+        if 'is_superuser' in request.data:
+            user.is_superuser = bool(request.data['is_superuser'])
+            if user.is_superuser:
+                user.is_staff = True
+        if 'name' in request.data:
+            user.name = request.data['name']
+        if 'phone' in request.data:
+            user.phone = request.data['phone']
+        if 'password' in request.data and request.data['password']:
+            user.set_password(request.data['password'])
+
+        user.save()
+        return Response({
+            'id': str(user.id),
+            'name': user.name,
+            'email': user.email,
+            'phone': user.phone,
+            'is_active': user.is_active,
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser,
+            'created_at': user.created_at
+        })
+
+    def delete(self, request, pk):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'error': 'Superadmin privileges required'}, status=status.HTTP_403_FORBIDDEN)
+
+        user = User.objects.filter(id=pk).first()
+        if not user:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.id == request.user.id:
+            return Response({'error': 'Cannot delete your own superadmin account'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.is_active = False
+        user.save(update_fields=['is_active'])
+        return Response({'message': 'User deactivated'})
+
 # --------------------------------------------------------------------------- #
 # ORGANISATION SUBDIVISION: OWNER & ADMIN APIS                                #
 # --------------------------------------------------------------------------- #

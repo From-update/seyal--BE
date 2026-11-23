@@ -271,8 +271,15 @@ class OTPRequestView(views.APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data.get('phone', '').strip()
         email = serializer.validated_data.get('email', '').strip().lower()
-
+        purpose = serializer.validated_data.get('purpose', 'login')
         provider = serializer.validated_data.get('provider', 'email_otp')
+
+        if purpose == 'register' and email:
+            if User.objects.filter(email=email).exists():
+                return Response({'error': 'An account with this email address already exists. Please log in.'}, status=status.HTTP_400_BAD_REQUEST)
+            if phone and User.objects.filter(phone=phone).exists():
+                return Response({'error': 'An account with this phone number already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
         code = generate_numeric_otp(6)
         code_hash = hash_secret(code)
         expires_at = timezone.now() + datetime.timedelta(minutes=10)
@@ -280,14 +287,14 @@ class OTPRequestView(views.APIView):
         if email:
             OTPRequest.objects.create(
                 email=email,
-                phone="",
+                phone=phone or "",
                 code_hash=code_hash,
-                purpose='login',
+                purpose=purpose,
                 expires_at=expires_at,
                 ip=request.META.get('REMOTE_ADDR'),
                 device_id=request.META.get('HTTP_USER_AGENT', '')[:100]
             )
-            print(f"📧 [Email OTP] 6-Digit code generated for {email} (provider: {provider}): {code}")
+            print(f"📧 [Email OTP] 6-Digit code generated for {email} / {phone} (purpose: {purpose}): {code}")
 
             # Send real email via Gmail SMTP
             email_sent = False
@@ -296,21 +303,21 @@ class OTPRequestView(views.APIView):
                 from django.core.mail import send_mail
                 from_addr = getattr(settings, 'DEFAULT_FROM_EMAIL', 'prabanprabanjan@gmail.com')
                 sender_email = getattr(settings, 'EMAIL_HOST_USER', 'prabanprabanjan@gmail.com')
-                subject = f"{code} is your Seyal Google sign-in code" if provider == 'google' else f"{code} is your Seyal verification code"
-                message = f"Hello,\n\nYour 6-digit verification code for Seyal is: {code}\n\nThis code will expire in 10 minutes.\n\nBest regards,\nThe Seyal Team\n{sender_email}"
+                subject = f"{code} is your SEYAL registration verification code" if purpose == 'register' else f"{code} is your SEYAL verification code"
+                message = f"Hello,\n\nYour 6-digit verification code for SEYAL is: {code}\n\nThis code will expire in 10 minutes.\n\nBest regards,\nThe SEYAL Team\n{sender_email}"
                 html_message = f"""
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
                     <div style="text-align: center; margin-bottom: 24px;">
-                        <h2 style="color: #2563eb; margin: 0; font-size: 24px;">🚀 Seyal</h2>
-                        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Workspace & Task Hierarchy</p>
+                        <h2 style="color: #08745B; margin: 0; font-size: 24px;">🚀 SEYAL</h2>
+                        <p style="color: #64748b; font-size: 13px; margin: 4px 0 0 0;">Work Management & Hierarchy Platform</p>
                     </div>
                     <div style="background: #f8fafc; border-radius: 8px; padding: 20px; border: 1px solid #f1f5f9;">
                         <p style="color: #1e293b; font-size: 15px; margin: 0 0 12px 0;">Hello,</p>
                         <p style="color: #334155; font-size: 14px; margin: 0 0 20px 0; line-height: 1.5;">
-                            Use the 6-digit verification code below to sign in to your Seyal workspace:
+                            Use the 6-digit verification code below to verify your SEYAL account:
                         </p>
                         <div style="text-align: center; margin: 24px 0;">
-                            <span style="display: inline-block; font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1e40af; background: #eff6ff; padding: 12px 28px; border-radius: 8px; border: 1px solid #bfdbfe;">
+                            <span style="display: inline-block; font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #08745B; background: #EDF6F1; padding: 12px 28px; border-radius: 8px; border: 1px solid #A7F3D0;">
                                 {code}
                             </span>
                         </div>
@@ -320,7 +327,7 @@ class OTPRequestView(views.APIView):
                     </div>
                     <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0 12px 0;" />
                     <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
-                        Sent from {sender_email}
+                        Sent securely from SEYAL Platform ({sender_email})
                     </p>
                 </div>
                 """
@@ -339,8 +346,9 @@ class OTPRequestView(views.APIView):
                 print(f"⚠️ [Email OTP] Failed to send email via SMTP: {e}")
 
             resp_data = {
-                'message': f'OTP sent successfully to {email}',
+                'message': f'OTP sent successfully to {email}' + (f' and {phone}' if phone else ''),
                 'email': email,
+                'phone': phone,
                 'email_sent': email_sent,
                 'expires_in_seconds': 600,
                 'cooldown_seconds': 45,
@@ -351,19 +359,20 @@ class OTPRequestView(views.APIView):
 
         elif phone:
             if not phone.startswith('+'):
-                phone = f"+91{phone}" # Standardize to E.164 (default India +91)
+                phone = f"+91{phone}"
 
             OTPRequest.objects.create(
                 phone=phone,
                 code_hash=code_hash,
-                purpose='login',
+                purpose=purpose,
                 expires_at=expires_at,
                 ip=request.META.get('REMOTE_ADDR'),
                 device_id=request.META.get('HTTP_USER_AGENT', '')[:100]
             )
+            print(f"📱 [SMS OTP] 6-Digit code generated for {phone} (purpose: {purpose}): {code}")
 
             resp_data = {
-                'message': 'OTP sent successfully',
+                'message': f'OTP sent successfully to {phone}',
                 'phone': phone,
                 'expires_in_seconds': 600,
                 'cooldown_seconds': 45,
@@ -383,6 +392,9 @@ class OTPVerifyView(views.APIView):
         code = serializer.validated_data['code'].strip()
         name = serializer.validated_data.get('name', '').strip()
         provider = serializer.validated_data.get('provider') or 'email_otp'
+        password = serializer.validated_data.get('password', '').strip()
+        subdivision = serializer.validated_data.get('subdivision', 'organisation').lower().strip()
+        org_name = serializer.validated_data.get('organization_name', '').strip()
 
         code_hash = hash_secret(code)
 
@@ -418,6 +430,8 @@ class OTPVerifyView(views.APIView):
         otp_req.save(update_fields=['verified_at'])
 
         is_new = False
+        from workspaces.models import Workspace, WorkspaceMember, Organisation
+
         if email:
             user = User.objects.filter(email=email).first()
             if not user:
@@ -426,16 +440,29 @@ class OTPVerifyView(views.APIView):
                 user = User.objects.create_user(
                     email=email,
                     name=user_name,
+                    phone=phone or None,
                     email_verified=True,
+                    phone_verified=True if phone else False,
                     avatar_url=f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}" if provider == 'google' else ""
                 )
             else:
                 if not user.email_verified:
                     user.email_verified = True
-                    user.save(update_fields=['email_verified'])
-                if provider == 'google' and not user.avatar_url:
-                    user.avatar_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={email}"
-                    user.save(update_fields=['avatar_url'])
+                if phone and not user.phone:
+                    user.phone = phone
+                    user.phone_verified = True
+                if name and not user.name:
+                    user.name = name
+                user.save()
+
+            if password:
+                user.set_password(password)
+                user.save()
+                AuthIdentity.objects.update_or_create(
+                    user=user,
+                    provider='password',
+                    defaults={'provider_user_id': email, 'provider_email': email, 'is_verified': True}
+                )
 
             AuthIdentity.objects.get_or_create(
                 user=user,
@@ -453,19 +480,96 @@ class OTPVerifyView(views.APIView):
                     name=name or f"User {phone[-4:]}",
                     phone_verified=True
                 )
-                AuthIdentity.objects.create(
-                    user=user,
-                    provider='phone',
-                    provider_user_id=phone,
-                    is_verified=True
-                )
             else:
                 if not user.phone_verified:
                     user.phone_verified = True
-                    user.save(update_fields=['phone_verified'])
+                user.save()
+
+            if password:
+                user.set_password(password)
+                user.save()
+                AuthIdentity.objects.update_or_create(
+                    user=user,
+                    provider='password',
+                    defaults={'provider_user_id': phone, 'is_verified': True}
+                )
+
+            AuthIdentity.objects.get_or_create(
+                user=user,
+                provider='phone',
+                provider_user_id=phone,
+                defaults={'is_verified': True}
+            )
             provider_tag = 'phone'
 
+        # =========================================================================
+        # AUTOMATIC WORKSPACE PROFILE CREATION ACCORDING TO SELECTED SUBDIVISION
+        # =========================================================================
         ensure_personal_workspace(user)
+
+        if is_new or not user.default_workspace_id:
+            if subdivision == 'organisation':
+                org_title = org_name or f"{user.name or 'My'} Organisation"
+                org = Organisation.objects.create(
+                    name=org_title,
+                    owner=user,
+                    email=email or '',
+                    phone=phone or '',
+                    is_active=True
+                )
+                ws = Workspace.objects.create(
+                    name=f"{org_title} Operations",
+                    type='organization',
+                    subdivision='organisation',
+                    organisation=org,
+                    plan='free',
+                    owner=user,
+                    settings={"icon": "🏢", "theme": "emerald"}
+                )
+                WorkspaceMember.objects.create(
+                    workspace=ws,
+                    user=user,
+                    role='org_superadmin',
+                    designation='Company Owner & CEO',
+                    status='active'
+                )
+                user.default_workspace_id = str(ws.id)
+                user.save(update_fields=['default_workspace_id'])
+            elif subdivision == 'freelancer':
+                ws = Workspace.objects.create(
+                    name=f"{user.name or 'Freelance'} Studio",
+                    type='team',
+                    subdivision='freelancer',
+                    plan='free',
+                    owner=user,
+                    settings={"icon": "💼", "theme": "purple"}
+                )
+                WorkspaceMember.objects.create(
+                    workspace=ws,
+                    user=user,
+                    role='owner',
+                    status='active'
+                )
+                user.default_workspace_id = str(ws.id)
+                user.save(update_fields=['default_workspace_id'])
+            elif subdivision == 'customize':
+                ws = Workspace.objects.create(
+                    name=org_name or f"{user.name or 'Custom'} Workspace",
+                    type='team',
+                    subdivision='customize',
+                    plan='free',
+                    owner=user,
+                    settings={"icon": "⚡", "theme": "amber"}
+                )
+                WorkspaceMember.objects.create(
+                    workspace=ws,
+                    user=user,
+                    role='owner',
+                    status='active'
+                )
+                user.default_workspace_id = str(ws.id)
+                user.save(update_fields=['default_workspace_id'])
+
         tokens = get_tokens_for_user(user)
 
         LoginAudit.objects.create(
@@ -479,8 +583,8 @@ class OTPVerifyView(views.APIView):
         return Response({
             'user': UserSerializer(user).data,
             'tokens': tokens,
-            'is_new_user': is_new,
-            'default_workspace_id': user.default_workspace_id
+            'default_workspace_id': user.default_workspace_id,
+            'is_new_user': is_new
         })
 
 class MeView(views.APIView):

@@ -37,6 +37,7 @@ class OTPRequestSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True, default="")
     email = serializers.EmailField(required=False, allow_blank=True, default="")
     provider = serializers.CharField(max_length=30, required=False, allow_blank=True, default="email_otp")
+    purpose = serializers.CharField(max_length=50, required=False, allow_blank=True, default="login")
 
     def validate(self, data):
         phone = data.get('phone', '').strip()
@@ -51,6 +52,10 @@ class OTPVerifySerializer(serializers.Serializer):
     code = serializers.CharField(max_length=10)
     name = serializers.CharField(required=False, allow_blank=True, default="")
     provider = serializers.CharField(max_length=30, required=False, allow_blank=True, default="email_otp")
+    password = serializers.CharField(required=False, allow_blank=True, default="")
+    subdivision = serializers.CharField(max_length=50, required=False, allow_blank=True, default="organisation")
+    organization_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default="")
+    role = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
 
     def validate(self, data):
         phone = data.get('phone', '').strip()

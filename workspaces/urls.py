@@ -6,6 +6,7 @@ from .views import (
     DepartmentListCreateView, DepartmentDetailView,
     WorkspaceInviteCreateView, AcceptInviteView,
     SuperadminAnalyticsView, SuperadminOrganisationsView, SuperadminOrganisationDetailView,
+    SuperadminUsersView, SuperadminUserDetailView,
     OrganisationOverviewView, OrganisationProjectsView, ProjectDetailView,
     OrganisationUsersView, OrganisationReportsView
 )
@@ -29,6 +30,8 @@ urlpatterns = [
     path('superadmin/analytics', SuperadminAnalyticsView.as_view(), name='superadmin_analytics'),
     path('superadmin/organisations', SuperadminOrganisationsView.as_view(), name='superadmin_organisations'),
     path('superadmin/organisations/<uuid:pk>', SuperadminOrganisationDetailView.as_view(), name='superadmin_organisation_detail'),
+    path('superadmin/users', SuperadminUsersView.as_view(), name='superadmin_users'),
+    path('superadmin/users/<uuid:pk>', SuperadminUserDetailView.as_view(), name='superadmin_user_detail'),
 
     # Organisation Subdivision
     path('organisations/<uuid:pk>/overview', OrganisationOverviewView.as_view(), name='organisation_overview'),

@@ -17,11 +17,15 @@ class TaskListCreateView(views.APIView):
         if not workspace_id:
             return Response({'error': 'workspace_id query param is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        queryset = Task.objects.filter(workspace_id=workspace_id).select_related('assignee', 'assigned_by', 'department', 'workspace')
+        queryset = Task.objects.filter(workspace_id=workspace_id).select_related('assignee', 'assigned_by', 'department', 'workspace', 'project', 'assigned_manager')
 
         department_id = request.query_params.get('department_id')
         if department_id:
             queryset = queryset.filter(department_id=department_id)
+
+        project_id = request.query_params.get('project_id')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
 
         assignee_id = request.query_params.get('assignee_id')
         if assignee_id:
@@ -49,9 +53,20 @@ class TaskListCreateView(views.APIView):
         department_id = request.data.get('department_id')
         department = Department.objects.filter(id=department_id, workspace=workspace).first() if department_id else None
 
+        project_id = request.data.get('project_id')
+        project = None
+        if project_id:
+            from workspaces.models import Project
+            project = Project.objects.filter(id=project_id).first()
+
+        manager_id = request.data.get('assigned_manager_id')
+        assigned_manager = User.objects.filter(id=manager_id).first() if manager_id else None
+
         task = Task.objects.create(
             workspace=workspace,
             department=department,
+            project=project,
+            assigned_manager=assigned_manager,
             title=request.data.get('title', 'New Task'),
             description=request.data.get('description', ''),
             status=request.data.get('status', 'todo'),

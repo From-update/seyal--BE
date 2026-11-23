@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
-from workspaces.models import Workspace, Department
+from workspaces.models import Workspace, Department, Project
 
 class Task(models.Model):
     STATUS_CHOICES = [
@@ -23,6 +23,7 @@ class Task(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='tasks')
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='todo')
@@ -40,6 +41,13 @@ class Task(models.Model):
         null=True,
         blank=True,
         related_name='created_assignments'
+    )
+    assigned_manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='supervised_tasks'
     )
     due_date = models.DateTimeField(null=True, blank=True)
     parent_task = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subtasks')

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Task, TaskSubmission, Comment, Attachment
 from accounts.serializers import UserSerializer
-from workspaces.serializers import DepartmentSerializer, WorkspaceSerializer
+from workspaces.serializers import DepartmentSerializer, WorkspaceSerializer, ProjectSerializer
 
 class TaskSubmissionSerializer(serializers.ModelSerializer):
     submitted_by = UserSerializer(read_only=True)
@@ -27,8 +27,12 @@ class TaskSerializer(serializers.ModelSerializer):
     assignee = UserSerializer(read_only=True)
     assignee_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     assigned_by = UserSerializer(read_only=True)
+    assigned_manager = UserSerializer(read_only=True)
+    assigned_manager_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     department = DepartmentSerializer(read_only=True)
     department_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    project = ProjectSerializer(read_only=True)
+    project_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     workspace = WorkspaceSerializer(read_only=True)
     workspace_id = serializers.UUIDField(write_only=True)
     latest_submission = serializers.SerializerMethodField()
@@ -39,13 +43,14 @@ class TaskSerializer(serializers.ModelSerializer):
         model = Task
         fields = [
             'id', 'workspace', 'workspace_id', 'department', 'department_id',
+            'project', 'project_id', 'assigned_manager', 'assigned_manager_id',
             'title', 'description', 'status', 'priority',
             'assignee', 'assignee_id', 'assigned_by', 'due_date',
             'parent_task', 'recurring_rule', 'labels',
             'latest_submission', 'subtasks_count', 'comments_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'workspace', 'department', 'assigned_by', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'workspace', 'department', 'project', 'assigned_manager', 'assigned_by', 'created_at', 'updated_at']
 
     def get_latest_submission(self, obj):
         submission = obj.submissions.order_by('-created_at').first()
@@ -56,4 +61,5 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_comments_count(self, obj):
         return Comment.objects.filter(target_type='task', target_id=obj.id).count()
+
 

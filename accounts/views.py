@@ -355,6 +355,8 @@ class OTPRequestView(views.APIView):
             }
             if email_warning:
                 resp_data['email_warning'] = email_warning
+            if settings.DEBUG:
+                resp_data['dev_otp'] = code
             return Response(resp_data, status=status.HTTP_200_OK)
 
         elif phone:
@@ -377,6 +379,8 @@ class OTPRequestView(views.APIView):
                 'expires_in_seconds': 600,
                 'cooldown_seconds': 45,
             }
+            if settings.DEBUG:
+                resp_data['dev_otp'] = code
             return Response(resp_data, status=status.HTTP_200_OK)
 
         return Response({'error': 'Either phone or email is required'}, status=status.HTTP_400_BAD_REQUEST)
